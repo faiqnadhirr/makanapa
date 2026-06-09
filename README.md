@@ -1,31 +1,46 @@
-# Makan Apa Hari Ini? 🍛
+# Makan Apa? 🍽️
 
-> Bantu kamu mutusin **makan apa hari ini**, sesuai budget dan mood.
+> **Lagi bingung makan? Kami pilihkan. Tinggal berangkat.**
 
-A playful food-decision MVP for Indonesians who ask *"makan apa ya?"* every single
-day. Pick a budget, pick a mood, hit **Cari makan!**, and the app pulls a full meal
-combo (lauk utama + lauk pendamping + sayur + minuman) with an estimated total
-price. Don't like it? **Putar lagi** for an instant new pull — it's built to feel
-like a gacha spin. Happy with it? **Bagikan** turns the result into a shareable
-image card.
+A playful **Food Decision Engine** for Indonesians who ask _"makan apa ya?"_ every
+single day. It doesn't just throw a random dish at you — it reads your **budget**,
+**mood**, **situation** ("lagi hujan", "lagi deadline", "baru gajian"), and your
+**hard no's** ("jangan kasih saya ayam"), then hands you a full meal package with a
+**food persona**, a **match score**, an **explanation of why**, and **where to buy
+it nearby**.
 
 No backend, no database. Everything runs on a static, locally-generated dataset of
-**445 Indonesian food items**.
+**440 Indonesian food items**, each tagged with mood, context, spice, comfort, and
+weather compatibility.
 
 ---
 
-## ✨ Features
+## ✨ V2 Features
 
-- **Budget selector** — Under 15k / 15k–25k / 25k–40k / 40k+
-- **Mood selector** — Pedas, Berkuah, Goreng, Sehat, Kenyang, Comfort Food, Lagi
-  Bokek, Lagi Gajian, Bebas (multi-select; *Bebas* acts as a wildcard)
-- **Recommendation engine** — weighted-random meal assembly that respects budget
-  caps + mood, with a budget *floor* so higher tiers feel generous
-- **Reroll** — instant new combo, animated "stamp-in" reveal
-- **Share card** — 1080×1350 portrait image via the Web Share API (with download
-  fallback on desktop)
-- **Empty + loading states** — friendly Indonesian copy, gacha-style loading beat
-- **Mobile-first, responsive** — neo-brutalist "warteg" visual style
+- **Context Engine** — "Situasi kamu hari ini?": Hujan, Capek, Deadline, Akhir
+  Bulan, Gajian, Kurang Enak Badan, Self Reward, Nongkrong, Di Rumah, Di Jalan.
+  Recommendations adapt (e.g. _hujan_ → warm soupy dishes, not dry fried food;
+  _kurang enak badan_ → gentle, low-spice food).
+- **Exclusion filters** — "Jangan kasih saya...": Ayam, Mie, Nasi, Gorengan, Pedas,
+  Seafood. Hard-filtered out of every part of the meal.
+- **Food persona system** — every result gets a personality: 🔥 Pejuang Deadline,
+  🧑‍🎓 Anak Kos Survival, 👑 Raja Akhir Bulan, ❤️ Self Reward Enjoyer, 🥘 Comfort
+  Food Hunter, 💪 Protein Seeker, 🍜 Tim Kuah Nasional, and more.
+- **Match score** — believable Mood / Budget / Situasi percentages + an overall
+  score, derived from how well the pick actually fits your inputs.
+- **Explainable recommendation** — "Kenapa kami pilih ini?" lists the real reasons.
+- **🎲 Surprise Me** — no questions asked; instant "misi makan hari ini" with a
+  cosmic one-liner.
+- **⚔️ Battle Mode** — two competing meal packages, you crown the winner. Tinder
+  for food.
+- **Google Maps integration** — find where to buy your dish nearby, via browser
+  geolocation or a manual area picker (16 Indonesian areas). Works with **zero
+  setup** through Maps deep links; add an API key for rich place cards.
+- **Daily Feature** — "Menu Hari Ini": one themed pick (Hari Soto Nasional, Hari
+  Makan Murah, ...) that's the same for everyone, every day.
+- **Share card** — 1080×1350 portrait image with persona, meal, total, and scores —
+  built for Instagram Stories / WhatsApp / X.
+- **Mobile-first**, neo-brutalist "warteg" visual style, gacha-style reroll.
 
 ---
 
@@ -43,164 +58,136 @@ No server, no DB — fully static and deployable to any static/edge host.
 
 ---
 
+## 🗺️ Maps integration approach
+
+The maps feature is **two-layer**, so the app works immediately without anyone
+having to set up Google Cloud billing:
+
+1. **Default (no API key):** every "where to buy" action opens a **Google Maps
+   search deep link** (`google.com/maps/search/?q=<dish> di <area>`), biased to the
+   user's geolocation or chosen area. Zero setup, zero cost.
+2. **Optional (with API key):** if the deployer sets
+   `NEXT_PUBLIC_GOOGLE_MAPS_KEY`, the places panel additionally fetches **rich
+   place cards** (name, distance, rating, price level, open/closed) via the Google
+   **Places API (New)** `searchText` endpoint, and still offers the deep link.
+
+To enable rich cards, create a `.env.local`:
+
+```bash
+NEXT_PUBLIC_GOOGLE_MAPS_KEY=your_key_here
+```
+
+Use an HTTP-referrer-restricted key with the **Places API (New)** enabled. Without
+it, the app silently falls back to deep links — nothing breaks.
+
+---
+
 ## 📂 Folder Structure
 
 ```
 makan-apa-hari-ini/
 ├── app/
-│   ├── globals.css          # Tailwind layers + warteg palette → shadcn CSS vars
-│   ├── layout.tsx           # Fonts (next/font), metadata, viewport
-│   └── page.tsx             # Client orchestrator: state machine + flow
+│   ├── globals.css              # Tailwind layers + warteg palette → CSS vars
+│   ├── layout.tsx               # Fonts (next/font), metadata, viewport
+│   └── page.tsx                 # Client orchestrator: modes, state machine, flow
 ├── components/
-│   ├── ui/                  # shadcn primitives
-│   │   ├── badge.tsx
-│   │   ├── button.tsx
-│   │   ├── card.tsx
-│   │   └── skeleton.tsx
-│   ├── hero.tsx             # Headline + hand-drawn underline
-│   ├── budget-selector.tsx  # 2×2 budget radiogroup
-│   ├── mood-selector.tsx    # Multi-select mood chips
-│   ├── recommendation-card.tsx  # The meal result card
-│   ├── share-card.tsx       # Off-screen 1080×1350 export target
-│   ├── empty-state.tsx      # "idle" + "no-result" variants
-│   └── loading-state.tsx    # Spinning-emoji gacha loader
+│   ├── ui/                      # shadcn primitives (badge, button, card, skeleton)
+│   ├── hero.tsx                 # Headline + tagline
+│   ├── budget-selector.tsx      # Budget tiers
+│   ├── mood-selector.tsx        # Mood chips (Bebas = wildcard)
+│   ├── context-selector.tsx     # "Situasi kamu hari ini?" chips
+│   ├── exclusion-selector.tsx   # "Jangan kasih saya..." chips
+│   ├── recommendation-card.tsx  # Persona + meal + badges + total (+ compact mode)
+│   ├── persona-badge.tsx        # Food persona block
+│   ├── match-score.tsx          # Mood/Budget/Situasi bars + overall
+│   ├── why-card.tsx             # "Kenapa kami pilih ini?"
+│   ├── battle-card.tsx          # Two meals, pick the winner
+│   ├── daily-feature.tsx        # "Menu Hari Ini"
+│   ├── places-panel.tsx         # Geolocation / area picker + Maps results
+│   ├── share-card.tsx           # 1080×1350 shareable image
+│   ├── empty-state.tsx          # idle / no-result
+│   └── loading-state.tsx        # gacha-pull loading beat
 ├── lib/
-│   ├── data/
-│   │   └── foods.ts         # AUTO-GENERATED dataset (445 items)
-│   ├── constants.ts         # BUDGETS, MOODS, soft caps
-│   ├── recommendation-engine.ts  # generateRecommendation()
-│   ├── share.ts             # shareNodeAsImage()
-│   ├── types.ts             # All shared types
-│   └── utils.ts             # cn(), formatRupiah(), formatRibu()
+│   ├── types.ts                 # All domain types (one source of truth)
+│   ├── constants.ts             # Budgets, moods, contexts, exclusions, areas
+│   ├── recommendation-engine.ts # Engine: context scoring, exclusions, surprise, battle
+│   ├── persona.ts               # Persona derivation rules
+│   ├── scoring.ts               # Match scores + explanation reasons
+│   ├── daily.ts                 # Date-seeded daily feature
+│   ├── places.ts                # Geolocation, deep links, Places API (New)
+│   ├── share.ts                 # html-to-image → Web Share / download
+│   ├── utils.ts                 # cn(), Rupiah formatting
+│   └── data/
+│       └── foods.ts             # AUTO-GENERATED dataset (440 items)
 ├── scripts/
-│   └── generate-foods.ts    # Deterministic dataset generator
-├── components.json          # shadcn config
-├── tailwind.config.ts       # Brand tokens, shadows, keyframes
-├── tsconfig.json
-├── next.config.ts
-└── package.json
+│   └── generate-foods.ts        # Deterministic dataset generator
+└── ...
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🧠 Recommendation engine design
 
-Requires **Node.js 18.18+** (Node 20 LTS recommended).
+1. **Filter** the dataset by budget cap and **hard exclusions** (name/spice/mood
+   based), plus a gentle-food guard when "kurang enak badan" is selected.
+2. **Score** each candidate main: popularity baseline, +mood matches, +context
+   matches, warm-food boost for hujan/sakit (and a penalty for dry fried food),
+   gentle penalty for spice when sick, economy bias for bokek/gajian.
+3. **Assemble** a package (main + side + veg + drink) with a weighted random pick
+   under a per-tier soft cap, then run **best-of-16** to pick the combo that best
+   fills the budget tier.
+4. **Decorate** with a derived **persona**, a **match score**, and human-readable
+   **reasons**. A seeded RNG makes everything deterministic in tests.
 
-```bash
-# 1. Install dependencies
-npm install
-
-# 2. Run the dev server
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-### Other scripts
-
-```bash
-npm run build         # production build
-npm run start         # serve the production build
-npm run typecheck     # tsc --noEmit
-npm run lint          # next lint
-npm run generate:data # regenerate lib/data/foods.ts
-```
-
-### Regenerating the dataset
-
-The food dataset is **generated deterministically** (fixed seed), so it's
-reproducible. The committed `lib/data/foods.ts` is the output of:
-
-```bash
-npm run generate:data
-```
-
-Edit the curated dish arrays in `scripts/generate-foods.ts` and re-run to rebuild.
-The script writes directly to `lib/data/foods.ts`.
+`generateSurprise()` ignores inputs; `generateBattle()` returns two packages with
+distinct mains.
 
 ---
 
-## 🍱 The Dataset
+## 🍱 Data schema
 
-`lib/data/foods.ts` exports `FOODS: FoodItem[]` — **445 items**
-(377 mains, 28 sides, 18 vegetables, 22 drinks). Each item:
+Each item in `lib/data/foods.ts` (regenerate with `npm run generate:data`):
 
 ```ts
-type FoodItem = {
+interface FoodItem {
   id: string;
   name: string;
   category: "main" | "side" | "vegetable" | "drink";
-  price: number;        // estimated, in IDR
-  moods: MoodId[];      // e.g. ["pedas", "berkuah", "gajian"]
-  protein: number;      // 0–10
-  popularity: number;   // 0–100
+  price: number;          // IDR (estimatedPrice)
+  moods: MoodId[];        // moodTags
+  contexts: ContextId[];  // contextTags
+  protein: number;        // 0–10 (proteinScore)
+  popularity: number;     // 0–100 (popularityScore)
+  spicy: number;          // 0–3 (spicyLevel)
+  comfort: number;        // 0–10 (comfortScore)
+  weather: WeatherTag[];  // weatherCompatibility: "hujan" | "panas" | "netral"
   emoji: string;
-};
+}
 ```
 
-Moods like `bokek` (cheap mains), `gajian` (pricier / high-protein), and `bebas`
-(everything) are derived automatically during generation.
+The generator is **deterministic** (seeded RNG), builds from a curated base of real
+dishes, expands authentic variants ("Spesial", "Komplit", "Telur"...), and derives
+context/spice/comfort/weather tags from name + mood heuristics.
 
 ---
 
-## 🧠 How the Engine Works
-
-`generateRecommendation(input, rand?)` in `lib/recommendation-engine.ts`:
-
-1. Buckets foods by category once.
-2. Picks a **main** via weighted random (by popularity), filtered to the chosen
-   mood(s) and within the budget's soft cap. *Bebas* ignores the flavor filter;
-   *bokek*/*gajian* bias scoring rather than hard-filtering.
-3. Assembles the **best of ~14 attempts**, adding side → vegetable → drink while
-   staying under the cap (sehat prioritizes vegetables first).
-4. Uses a **budget floor** per tier so 40k+ pulls feel appropriately generous.
-5. Returns `null` when nothing fits → triggers the friendly *no-result* empty state.
-
-`rand` is injectable, so the engine is deterministic and unit-testable.
-
----
-
-## ▲ Deploying to Vercel
-
-This is a standard Next.js app — zero config needed.
-
-### Option A — Git + Vercel dashboard (recommended)
-
-1. Push the project to a GitHub/GitLab/Bitbucket repo:
-   ```bash
-   git init
-   git add .
-   git commit -m "Makan Apa Hari Ini MVP"
-   git branch -M main
-   git remote add origin <your-repo-url>
-   git push -u origin main
-   ```
-2. Go to [vercel.com/new](https://vercel.com/new), **Import** the repository.
-3. Vercel auto-detects Next.js. Leave the defaults:
-   - Framework Preset: **Next.js**
-   - Build Command: `next build`
-   - Output: handled automatically
-4. Click **Deploy**. Done — you'll get a live URL.
-
-### Option B — Vercel CLI
+## 🚀 Getting started
 
 ```bash
-npm i -g vercel
-vercel          # preview deploy (follow the prompts)
-vercel --prod   # production deploy
+npm install
+npm run dev          # http://localhost:3000
+npm run generate:data  # rebuild lib/data/foods.ts
+npm run build && npm run start
 ```
 
-No environment variables are required — the app is fully static.
+### Deploy (Vercel)
+
+1. Push to GitHub.
+2. Import the repo at [vercel.com/new](https://vercel.com/new) — framework auto-detected.
+3. _(Optional)_ add `NEXT_PUBLIC_GOOGLE_MAPS_KEY` under **Settings → Environment
+   Variables** to enable rich place cards.
+4. Deploy. Every push to `main` auto-redeploys.
 
 ---
 
-## 📝 Notes
-
-- Fonts load through `next/font/google`, which fetches from Google Fonts at build
-  time. This works automatically on your machine and on Vercel. (If you build in a
-  locked-down offline environment, swap to a local `next/font/local` source.)
-- Built mobile-first; the share card is tuned for Instagram/WhatsApp Stories
-  (1080×1350).
-
-Selamat makan! 🍽️
+Dibuat buat kamu yang tiap hari nanya _"makan apa ya?"_ 🍛

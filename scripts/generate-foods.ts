@@ -232,6 +232,8 @@ function buildVariants(): BaseItem[] {
       // Skip nonsensical combos (e.g. "Level 5" on a non-spicy mild dish).
       if (mod.suffix === "Level 5" && !base.moods.includes("pedas")) continue;
       if (mod.suffix === "Pete" && base.moods.includes("berkuah")) continue;
+      // Avoid double words like "Indomie Telur Telur".
+      if (base.name.toLowerCase().includes(mod.suffix.toLowerCase())) continue;
       out.push({
         name: `${base.name} ${mod.suffix}`,
         category: "main",
@@ -259,6 +261,164 @@ function deriveMoods(item: BaseItem): Mood[] {
   return Array.from(moods);
 }
 
+// ---- V2 derivations: contexts / spicy / comfort / weather -------------------
+type Context =
+  | "hujan"
+  | "capek"
+  | "deadline"
+  | "akhirbulan"
+  | "gajian"
+  | "sakit"
+  | "selfreward"
+  | "nongkrong"
+  | "rumah"
+  | "jalan";
+type Weather = "hujan" | "panas" | "netral";
+
+const nameHas = (name: string, ...subs: string[]) =>
+  subs.some((s) => name.toLowerCase().includes(s));
+
+function deriveSpicy(item: BaseItem): number {
+  const n = item.name.toLowerCase();
+  if (nameHas(n, "level 5", "gacoan")) return 3;
+  if (
+    nameHas(
+      n,
+      "geprek",
+      "rica",
+      "balado",
+      "sambal",
+      "taliwang",
+      "penyet",
+      "rendang",
+      "sego sambel",
+      "mie aceh",
+      "dendeng",
+    )
+  )
+    return 3;
+  if (item.moods.includes("pedas")) return 2;
+  if (nameHas(n, "pete")) return 1;
+  return 0;
+}
+
+function deriveComfort(item: BaseItem): number {
+  if (item.category !== "main") return item.moods.includes("comfort") ? 6 : 3;
+  let c = item.moods.includes("comfort") ? 8 : 4;
+  if (item.moods.includes("berkuah")) c += 1;
+  if (
+    nameHas(
+      item.name,
+      "indomie",
+      "bubur",
+      "soto",
+      "bakso",
+      "mie ayam",
+      "nasi goreng",
+      "sop",
+    )
+  )
+    c += 1;
+  return Math.max(0, Math.min(10, c));
+}
+
+function deriveWeather(item: BaseItem): Weather[] {
+  const n = item.name.toLowerCase();
+  const out = new Set<Weather>();
+  const warm =
+    item.moods.includes("berkuah") ||
+    nameHas(
+      n,
+      "soto",
+      "sop",
+      "bakso",
+      "wedang",
+      "jahe",
+      "bajigur",
+      "rebus",
+      "gulai",
+      "rawon",
+      "tongseng",
+      "coto",
+      "empal gentong",
+      "laksa",
+      "tekwan",
+      "bubur",
+    );
+  const cool =
+    nameHas(
+      n,
+      "es ",
+      "jus",
+      "kelapa",
+      "cincau",
+      "cendol",
+      "campur",
+      "dawet",
+      "segar",
+      "lalapan",
+      "karedok",
+      "gado",
+      "asem",
+      "buah",
+    ) ||
+    (item.category === "drink" && nameHas(n, "es"));
+  if (warm) out.add("hujan");
+  if (cool) out.add("panas");
+  if (out.size === 0) out.add("netral");
+  return Array.from(out);
+}
+
+function deriveContexts(
+  item: BaseItem,
+  spicy: number,
+  comfort: number,
+  weather: Weather[],
+): Context[] {
+  const n = item.name.toLowerCase();
+  const ctx = new Set<Context>();
+  const price = item.price;
+  const cheap = item.moods.includes("bokek") || price <= 14000;
+  const pricey = item.moods.includes("gajian") || price >= 26000;
+  const quick =
+    nameHas(n, "indomie", "nasi goreng", "mie goreng", "gacoan", "telur", "bubur", "nasi kucing", "burjo") ||
+    (item.category === "main" && item.popularity >= 88 && price <= 18000);
+
+  if (weather.includes("hujan") || comfort >= 7) ctx.add("hujan");
+  if (comfort >= 6 && spicy <= 2) ctx.add("capek");
+  if (quick || (item.moods.includes("kenyang") && price <= 20000)) ctx.add("deadline");
+  if (cheap) ctx.add("akhirbulan");
+  if (pricey) ctx.add("gajian");
+  if (
+    spicy === 0 &&
+    (nameHas(n, "soto", "sop", "bubur", "bayam", "sayur bening", "tekwan", "wedang", "jahe") ||
+      (item.moods.includes("sehat") && item.moods.includes("berkuah")))
+  )
+    ctx.add("sakit");
+  if (
+    pricey ||
+    nameHas(n, "salmon", "mentai", "katsu", "teriyaki", "mozzarella", "martabak", "es kopi susu", "es campur", "sate kambing", "iga", "buntut")
+  )
+    ctx.add("selfreward");
+  if (
+    item.category === "drink" ||
+    nameHas(n, "sate", "martabak", "pempek", "kopi", "sosis", "nugget", "kentang goreng", "otak-otak")
+  )
+    ctx.add("nongkrong");
+  if (
+    comfort >= 7 ||
+    nameHas(n, "indomie", "nasi goreng", "telur", "tempe", "tahu", "capcay", "sayur", "bubur", "nasi uduk")
+  )
+    ctx.add("rumah");
+  if (
+    nameHas(n, "nasi kucing", "nasi bakar", "martabak", "pempek", "sate", "lontong", "bakwan", "kerupuk", "nasi padang", "ketoprak", "gado") ||
+    (item.category === "main" && price <= 15000)
+  )
+    ctx.add("jalan");
+
+  return Array.from(ctx);
+}
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -270,17 +430,34 @@ function slugify(name: string): string {
 
 function finalize(items: BaseItem[]) {
   const seen = new Set<string>();
-  const result: (BaseItem & { id: string })[] = [];
+  const result: (BaseItem & {
+    id: string;
+    contexts: Context[];
+    spicy: number;
+    comfort: number;
+    weather: Weather[];
+  })[] = [];
   for (const item of items) {
     const id = slugify(item.name);
     if (seen.has(id)) continue;
     seen.add(id);
-    result.push({
+    const priced: BaseItem = {
       ...item,
-      id,
       price: jitter(item.price, item.price > 12000 ? 1500 : 500),
       popularity: Math.max(40, Math.min(99, item.popularity + Math.round((rng() * 2 - 1) * 3))),
-      moods: deriveMoods(item),
+    };
+    const spicy = deriveSpicy(priced);
+    const comfort = deriveComfort(priced);
+    const weather = deriveWeather(priced);
+    const contexts = deriveContexts(priced, spicy, comfort, weather);
+    result.push({
+      ...priced,
+      id,
+      moods: deriveMoods(priced),
+      contexts,
+      spicy,
+      comfort,
+      weather,
     });
   }
   return result;

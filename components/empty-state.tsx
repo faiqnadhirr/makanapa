@@ -21,7 +21,7 @@ export function EmptyState({ variant, className }: EmptyStateProps) {
       : {
           emoji: "😅",
           title: "Wah, susah dicariin nih",
-          body: "Budget dan mood-nya kurang nyambung. Coba naikkan budget atau kurangi filter mood-nya.",
+          body: "Filter kamu kayaknya keketatan. Coba naikkan budget, kurangi pantangan di \u201cjangan kasih saya\u201d, atau longgarin mood-nya.",
         };
 
   return (
