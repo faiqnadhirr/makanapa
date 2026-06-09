@@ -17,12 +17,14 @@ const MOOD_BY_ID = new Map(MOODS.map((m) => [m.id, m]));
 const CTX_BY_ID = new Map(CONTEXTS.map((c) => [c.id, c]));
 
 function MealRow({ item, compact }: { item: FoodItem; compact?: boolean }) {
+  const isFree = item.isFree;
   return (
     <div className={cn("flex items-center gap-3", compact ? "py-1.5" : "py-2.5")}>
       <div
         className={cn(
           "flex shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-secondary/40",
           compact ? "size-8 text-base" : "size-11 text-xl",
+          isFree && "opacity-60",
         )}
       >
         <span aria-hidden>{item.emoji}</span>
@@ -32,21 +34,31 @@ function MealRow({ item, compact }: { item: FoodItem; compact?: boolean }) {
           className={cn(
             "truncate font-display font-bold leading-tight text-ink",
             compact ? "text-sm" : "text-base",
+            isFree && "opacity-75",
           )}
         >
           {item.name}
+          {item.freeReason && (
+            <span className="ml-2 inline-block rounded-full border border-pandan/50 bg-pandan/10 px-2 py-0.5 text-xs font-semibold text-pandan">
+              GRATIS
+            </span>
+          )}
         </p>
         {!compact && (
-          <p className="text-xs text-muted-foreground">{CATEGORY_LABEL[item.category]}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">{CATEGORY_LABEL[item.category]}</p>
+            {item.freeReason && <p className="text-xs italic text-pandan">{item.freeReason}</p>}
+          </div>
         )}
       </div>
       <span
         className={cn(
           "shrink-0 font-bold tabular-nums text-ink",
           compact ? "text-xs" : "text-sm",
+          isFree && "opacity-60",
         )}
       >
-        {formatRupiah(item.price)}
+        {isFree ? "GRATIS" : formatRupiah(item.price)}
       </span>
     </div>
   );
@@ -59,11 +71,12 @@ interface RecommendationCardProps {
 }
 
 export function RecommendationCard({ recommendation, compact }: RecommendationCardProps) {
-  const { main, side, vegetable, drink, total, moods, contexts, persona, score } =
+  const { main, side, vegetable, drink, total, paidTotal, moods, contexts, persona, score, reasons } =
     recommendation;
   const items = [main, side, vegetable, drink].filter((i): i is FoodItem => i !== null);
   const shownMoods = moods.filter((m): m is MoodId => MOOD_BY_ID.has(m) && m !== "bebas");
   const shownCtx = contexts.filter((c): c is ContextId => CTX_BY_ID.has(c));
+  const hasFreeItems = items.some((i) => i.isFree);
 
   return (
     <div
@@ -128,22 +141,42 @@ export function RecommendationCard({ recommendation, compact }: RecommendationCa
 
       <div
         className={cn(
-          "flex items-center justify-between border-t-2 border-ink bg-ink text-background",
-          compact ? "mt-2 px-4 py-3" : "mt-3 px-5 py-4",
+          "flex flex-col gap-2 border-t-2 border-ink bg-ink px-5 py-4 text-background",
+          compact && "mt-2",
         )}
       >
-        <span className="font-display text-sm font-bold uppercase tracking-wide">
-          Total
-        </span>
-        <span
-          className={cn(
-            "font-display font-extrabold tabular-nums",
-            compact ? "text-lg" : "text-2xl",
-          )}
-        >
-          {formatRupiah(total)}
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="font-display text-sm font-bold uppercase tracking-wide">
+            {hasFreeItems ? "Bayar" : "Total"}
+          </span>
+          <span
+            className={cn(
+              "font-display font-extrabold tabular-nums",
+              compact ? "text-lg" : "text-2xl",
+            )}
+          >
+            {formatRupiah(paidTotal)}
+          </span>
+        </div>
+        {hasFreeItems && (
+          <p className="text-xs opacity-80">
+            + {formatRupiah(total - paidTotal)} gratis (kerupuk, sambal, acar, dll)
+          </p>
+        )}
       </div>
+
+      {!compact && reasons.length > 0 && (
+        <div className="border-t-2 border-dashed border-ink/15 px-5 py-3">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">🤔 Kenapa kami pilih ini?</p>
+          <ul className="space-y-1">
+            {reasons.map((reason, idx) => (
+              <li key={idx} className="text-xs text-ink/80 leading-relaxed">
+                ✓ {reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
