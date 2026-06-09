@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { Dices, Share2, Sparkles, Swords, UtensilsCrossed } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { Dices, Share2, UtensilsCrossed } from "lucide-react";
 
 import { BudgetSelector } from "@/components/budget-selector";
 import { ContextSelector } from "@/components/context-selector";
@@ -10,32 +10,16 @@ import { EmptyState } from "@/components/empty-state";
 import { Hero } from "@/components/hero";
 import { LoadingState } from "@/components/loading-state";
 import { MoodSelector } from "@/components/mood-selector";
+import { MealTypeSelector } from "@/components/meal-type-selector";
 import { RecommendationCard } from "@/components/recommendation-card";
-import { MatchScoreCard } from "@/components/match-score";
-import { WhyCard } from "@/components/why-card";
-import { BattleCard } from "@/components/battle-card";
-import { DailyFeatureCard } from "@/components/daily-feature";
 import { PlacesPanel } from "@/components/places-panel";
 import { ShareCard } from "@/components/share-card";
 import { Button } from "@/components/ui/button";
-import {
-  generateBattle,
-  generateRecommendation,
-  generateSurprise,
-} from "@/lib/recommendation-engine";
-import { getDailyFeature } from "@/lib/daily";
+import { generateRecommendationV3, generateSurpriseV3 } from "@/lib/engine";
 import { shareNodeAsImage } from "@/lib/share";
-import type {
-  Battle,
-  BudgetId,
-  ContextId,
-  ExclusionId,
-  MoodId,
-  Recommendation,
-} from "@/lib/types";
+import type { BudgetId, ContextId, ExclusionId, MealCategory, MoodId, Recommendation } from "@/lib/types";
 
-type Status = "idle" | "loading" | "result" | "battle" | "no-result";
-type Action = "single" | "battle" | "surprise";
+type Status = "idle" | "loading" | "result" | "no-result";
 
 function SectionLabel({ step, children }: { step: number; children: string }) {
   return (
@@ -53,94 +37,58 @@ export default function HomePage() {
   const [moods, setMoods] = useState<MoodId[]>([]);
   const [contexts, setContexts] = useState<ContextId[]>([]);
   const [exclusions, setExclusions] = useState<ExclusionId[]>([]);
-  const [battleMode, setBattleMode] = useState(false);
+  const [mealType, setMealType] = useState<MealCategory>("makan-besar");
 
   const [status, setStatus] = useState<Status>("idle");
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
-  const [battle, setBattle] = useState<Battle | null>(null);
-  const [isSurprise, setIsSurprise] = useState(false);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
 
-  const lastAction = useRef<Action>("single");
   const shareRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const daily = useMemo(() => getDailyFeature(), []);
-
-  const scrollToResult = useCallback(() => {
-    requestAnimationFrame(() =>
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
-  }, []);
-
-  /** Run an action behind the playful "gacha pull" delay. */
   const run = useCallback(
-    (action: Action, scroll: boolean) => {
-      if (action !== "surprise" && !budget) return;
-      lastAction.current = action;
+    (isSurprise = false) => {
+      if (!budget && !isSurprise) return;
       setStatus("loading");
       setShareMsg(null);
       if (timer.current) clearTimeout(timer.current);
 
       timer.current = setTimeout(() => {
-        if (action === "surprise") {
-          const rec = generateSurprise();
+        if (isSurprise) {
+          const rec = generateSurpriseV3(mealType, budget || "15to25");
           setRecommendation(rec);
-          setBattle(null);
-          setIsSurprise(true);
           setStatus("result");
-          if (scroll) scrollToResult();
-          return;
-        }
-
-        const input = { budget: budget!, moods, contexts, exclusions };
-
-        if (action === "battle") {
-          const b = generateBattle(input);
-          if (b) {
-            setBattle(b);
-            setRecommendation(null);
-            setIsSurprise(false);
-            setStatus("battle");
-            if (scroll) scrollToResult();
+        } else if (budget) {
+          const rec = generateRecommendationV3({
+            budget,
+            moods,
+            contexts,
+            exclusions,
+            mealType,
+          });
+          if (rec) {
+            setRecommendation(rec);
+            setStatus("result");
           } else {
             setStatus("no-result");
           }
-          return;
         }
 
-        const rec = generateRecommendation(input);
-        if (rec) {
-          setRecommendation(rec);
-          setBattle(null);
-          setIsSurprise(false);
-          setStatus("result");
-          if (scroll) scrollToResult();
-        } else {
-          setRecommendation(null);
-          setStatus("no-result");
-        }
+        requestAnimationFrame(() =>
+          resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        );
       }, 650);
     },
-    [budget, moods, contexts, exclusions, scrollToResult],
+    [budget, moods, contexts, exclusions, mealType],
   );
 
-  const reroll = useCallback(() => run(lastAction.current, false), [run]);
-
-  const pickBattleWinner = useCallback((winner: Recommendation) => {
-    setTimeout(() => {
-      setRecommendation(winner);
-      setBattle(null);
-      setIsSurprise(false);
-      setStatus("result");
-    }, 550);
-  }, []);
+  const reroll = useCallback(() => run(), [run]);
 
   const handleShare = useCallback(async () => {
     if (!shareRef.current) return;
     setShareMsg("Menyiapkan gambar...");
-    const result = await shareNodeAsImage(shareRef.current, "makan-apa.png");
+    const result = await shareNodeAsImage(shareRef.current, "makan-apa-v3.png");
     setShareMsg(
       result === "shared"
         ? "Berhasil dibagikan!"
@@ -151,18 +99,11 @@ export default function HomePage() {
     setTimeout(() => setShareMsg(null), 2500);
   }, []);
 
-  const primaryLabel = battleMode ? "Adu dua menu!" : "Cari makan!";
-  const primaryAction: Action = battleMode ? "battle" : "single";
-
   return (
     <main className="container min-h-dvh pb-16">
       <Hero />
 
-      <div className="mt-5">
-        <DailyFeatureCard feature={daily} />
-      </div>
-
-      <section className="mt-7">
+      <section className="mt-6">
         <SectionLabel step={1}>Budget kamu berapa?</SectionLabel>
         <BudgetSelector value={budget} onChange={setBudget} />
       </section>
@@ -182,103 +123,49 @@ export default function HomePage() {
         <ExclusionSelector value={exclusions} onChange={setExclusions} />
       </section>
 
-      {/* Battle toggle */}
-      <button
-        type="button"
-        onClick={() => setBattleMode((v) => !v)}
-        aria-pressed={battleMode}
-        className={`mt-7 flex w-full items-center gap-3 rounded-2xl border-2 border-ink px-4 py-3 text-left shadow-pop-sm transition-colors ${
-          battleMode ? "bg-primary text-primary-foreground" : "bg-card text-ink hover:bg-muted"
-        }`}
-      >
-        <Swords className="size-5 shrink-0" />
-        <span className="flex-1">
-          <span className="block font-display text-sm font-extrabold">Battle Mode</span>
-          <span className="block text-xs opacity-80">
-            Dikasih dua pilihan, kamu yang menangin. Tinder for food.
-          </span>
-        </span>
-        <span
-          className={`flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-ink p-0.5 transition-colors ${
-            battleMode ? "bg-ink" : "bg-muted"
-          }`}
-        >
-          <span
-            className={`size-4 rounded-full bg-card transition-transform ${
-              battleMode ? "translate-x-5" : "translate-x-0"
-            }`}
-          />
-        </span>
-      </button>
+      <section className="mt-7">
+        <SectionLabel step={5}>Tipe makan apa?</SectionLabel>
+        <MealTypeSelector value={mealType} onChange={setMealType} />
+      </section>
 
-      {/* Primary actions */}
-      <div className="mt-5 space-y-3">
+      <div className="mt-6 space-y-3">
         <Button
           size="lg"
           className="w-full"
           disabled={!budget || status === "loading"}
-          onClick={() => run(primaryAction, true)}
+          onClick={() => run(false)}
         >
-          {battleMode ? <Swords /> : <UtensilsCrossed />}
-          {status === "loading" ? "Lagi nyariin..." : primaryLabel}
+          <UtensilsCrossed />
+          {status === "loading" ? "Lagi nyariin..." : "Cari makan!"}
         </Button>
         <Button
           size="lg"
           variant="secondary"
           className="w-full"
           disabled={status === "loading"}
-          onClick={() => run("surprise", true)}
+          onClick={() => run(true)}
         >
-          <Sparkles />
+          <Dices />
           🎲 Surprise Me
         </Button>
         {!budget && (
           <p className="text-center text-xs text-muted-foreground">
-            Pilih budget dulu buat dua tombol di atas — atau langsung tekan Surprise Me.
+            Pilih budget dulu, atau langsung Surprise Me.
           </p>
         )}
       </div>
 
-      {/* Result region */}
       <section ref={resultRef} className="mt-8 scroll-mt-4">
         {status === "loading" && <LoadingState />}
         {status === "idle" && <EmptyState variant="idle" />}
         {status === "no-result" && <EmptyState variant="no-result" />}
 
-        {status === "battle" && battle && (
-          <div className="space-y-3">
-            <p className="text-center font-display text-base font-extrabold text-ink">
-              ⚔️ Pilih satu, menangin perutmu
-            </p>
-            <BattleCard battle={battle} onPick={pickBattleWinner} />
-          </div>
-        )}
-
         {status === "result" && recommendation && (
           <div className="space-y-4">
-            {isSurprise && (
-              <div className="animate-rise-in rounded-2xl border-2 border-ink bg-pandan px-4 py-3 text-center text-white shadow-pop-sm">
-                <p className="font-display text-sm font-bold uppercase tracking-wide">
-                  Misi makan hari ini
-                </p>
-                <p className="text-xs opacity-90">Hari ini semesta yang milih 🔮</p>
-              </div>
-            )}
-
-            <RecommendationCard key={recommendation.id} recommendation={recommendation} />
-
-            {isSurprise ? (
-              <div className="rounded-2xl border-2 border-dashed border-ink/40 bg-secondary/30 p-4 text-center">
-                <p className="text-sm italic leading-snug text-ink/90">
-                  &ldquo;{recommendation.reasons[0]}&rdquo;
-                </p>
-              </div>
-            ) : (
-              <>
-                <MatchScoreCard score={recommendation.score} />
-                <WhyCard reasons={recommendation.reasons} />
-              </>
-            )}
+            <RecommendationCard
+              key={recommendation.id}
+              recommendation={recommendation}
+            />
 
             <PlacesPanel foodName={recommendation.main.name} />
 
@@ -291,7 +178,7 @@ export default function HomePage() {
                 size="lg"
                 variant="outline"
                 onClick={handleShare}
-                aria-label="Bagikan menu"
+                aria-label="Bagikan"
               >
                 <Share2 />
                 Bagikan
@@ -308,16 +195,11 @@ export default function HomePage() {
       </section>
 
       <footer className="mt-12 text-center text-xs text-muted-foreground">
-        Dibuat buat kamu yang tiap hari nanya{" "}
-        <span className="font-semibold text-ink">&ldquo;makan apa ya?&rdquo;</span>
+        V3 — Food Decision Engine 🍛
       </footer>
 
-      {/* Off-screen render target for the shareable image. */}
       {recommendation && (
-        <div
-          aria-hidden
-          style={{ position: "absolute", left: -99999, top: 0, pointerEvents: "none" }}
-        >
+        <div aria-hidden style={{ position: "absolute", left: -99999, top: 0 }}>
           <ShareCard ref={shareRef} recommendation={recommendation} />
         </div>
       )}
