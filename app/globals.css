@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Surfaces — warm rice-paper cream */
+    --background: 34 100% 97%; /* #FFF6EC */
+    --foreground: 18 38% 11%; /* warm near-black ink */
+
+    --card: 0 0% 100%;
+    --card-foreground: 18 38% 11%;
+
+    /* Chili red is the primary action color */
+    --primary: 11 81% 51%; /* #E8431F */
+    --primary-foreground: 34 100% 98%;
+
+    /* Kunyit (turmeric) yellow */
+    --secondary: 38 100% 59%; /* #FFB02E */
+    --secondary-foreground: 18 38% 11%;
+
+    --muted: 32 40% 92%;
+    --muted-foreground: 20 14% 42%;
+
+    --accent: 38 100% 59%;
+    --accent-foreground: 18 38% 11%;
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 20 25% 86%;
+    --input: 20 25% 86%;
+    --ring: 11 81% 51%;
+
+    --radius: 1rem;
+
+    /* Brand tokens used directly via text-chili / bg-pandan etc. */
+    --chili: 11 81% 51%;
+    --kunyit: 38 100% 59%;
+    --pandan: 147 67% 37%;
+    --ink: 18 38% 11%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Subtle warteg-tablecloth dotted texture */
+    background-image: radial-gradient(
+      hsl(20 30% 88% / 0.6) 1px,
+      transparent 1px
+    );
+    background-size: 18px 18px;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
